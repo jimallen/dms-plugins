@@ -16,30 +16,69 @@ Bar widget displaying your next Google Calendar meeting with one-click join.
 ## Requirements
 
 - DankMaterialShell
+- [gcal](https://github.com/jimallen/gcal) - Google Calendar CLI tool
 - Google OAuth credentials from Google Cloud Console
 
 ## Setup
 
-### 1. Create OAuth Credentials
+### 1. Install gcal CLI
+
+The widget requires the `gcal` CLI tool to fetch calendar data.
+
+**Via Go Install:**
+```bash
+go install github.com/jimallen/gcal/cmd/gcal@latest
+```
+
+**From Source:**
+```bash
+git clone https://github.com/jimallen/gcal.git
+cd gcal
+go build -o gcal ./cmd/gcal
+sudo mv gcal /usr/local/bin/
+```
+
+Verify installation:
+```bash
+gcal --help
+```
+
+### 2. Create OAuth Credentials
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Enable the Google Calendar API
-3. Configure OAuth consent screen (External, add your email as test user)
-4. Add scope: `https://www.googleapis.com/auth/calendar.readonly`
-5. Create OAuth 2.0 Client ID (Desktop app type)
-6. Add redirect URI: `http://localhost:8085/callback` (port configurable)
-7. Download JSON and save to `~/.config/gcal/gcal-credentials.json`
+2. Create a new project (or select existing)
+3. Enable the **Google Calendar API**
+4. Configure OAuth consent screen:
+   - User type: External
+   - Add your email as a test user
+   - Add scope: `https://www.googleapis.com/auth/calendar.readonly`
+5. Create OAuth 2.0 Client ID:
+   - Application type: Desktop app
+   - Add redirect URI: `http://localhost:8085/callback` (port configurable)
+6. Download the JSON credentials file
+7. Save to `~/.config/gcal/gcal-credentials.json`:
+   ```bash
+   mkdir -p ~/.config/gcal
+   mv ~/Downloads/client_secret_*.json ~/.config/gcal/gcal-credentials.json
+   ```
 
-### 2. Authenticate
+### 3. Authenticate
 
 ```bash
 gcal auth               # Uses default port 8085
 gcal auth --port 9000   # Use custom port (must match redirect URI)
 ```
 
-### 3. Enable Plugin
+This opens a browser for Google OAuth. Grant calendar access and the token will be saved automatically.
 
-1. Open Settings → Plugins
+Verify authentication:
+```bash
+gcal status
+```
+
+### 4. Enable Plugin
+
+1. Open DMS Settings → Plugins
 2. Click "Scan for Plugins"
 3. Enable MeetingWidget
 4. Add `MeetingWidget` to your DankBar widget list
@@ -61,7 +100,7 @@ Available settings in plugin settings:
 ## Display States
 
 - **Loading...** - Fetching calendar data
-- **Not configured** - Google Calendar not set up
+- **Not configured** - gcal not authenticated
 - **No meetings** - No upcoming meetings in next 48h
 - **[Title] in [time]** - Next meeting with countdown
 - **[Title] Now** - Meeting currently in progress
@@ -71,18 +110,21 @@ Available settings in plugin settings:
 When enabled, adds a Meetings tab to DankDash with:
 - Expandable accordion for each meeting
 - Attendee list with count
-- Join buttons for video meetings
+- Join buttons for video meetings (Zoom, Meet, Teams, WebEx)
 - Conflict indicators
 - Color-coded meeting types
 
-## CLI Commands
+## gcal CLI Commands
 
 ```bash
-gcal auth       # Authenticate with Google
-gcal status     # Check connection status
-gcal logout     # Disconnect account
-gcal events     # Fetch events (for debugging)
+gcal auth        # Authenticate with Google
+gcal status      # Check connection status
+gcal events      # Fetch events (JSON output)
+gcal calendars   # List available calendars
+gcal logout      # Disconnect account
 ```
+
+See [gcal documentation](https://github.com/jimallen/gcal) for full CLI usage.
 
 ## License
 
