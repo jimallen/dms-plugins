@@ -1,0 +1,20 @@
+{
+    "id": "meetingWidget",
+    "name": "Meeting Widget",
+    "description": "Google Calendar integration showing today's meetings with one-click join",
+    "version": "1.0.0",
+    "license": "MIT",
+    "author": "jima",
+    "icon": "event",
+    "type": "widget",
+    "capabilities": ["dankbar-widget"],
+    "component": "./MeetingWidget.qml",
+    "tabComponent": "./MeetingsTab.qml",
+    "tabName": "Meetings",
+    "tabIcon": "event",
+    "settings": "./MeetingWidgetSettings.qml",
+    "permissions": [
+        "settings_read",
+        "settings_write"
+    ]
+}

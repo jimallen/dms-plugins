@@ -1,0 +1,17 @@
+{
+    "id": "centerWidget",
+    "name": "Center Widget",
+    "description": "Combined time, date, and weather widget with customizable colors",
+    "version": "1.0.0",
+    "license": "MIT",
+    "author": "jima",
+    "icon": "schedule",
+    "type": "widget",
+    "capabilities": ["dankbar-widget"],
+    "component": "./CenterWidget.qml",
+    "settings": "./CenterWidgetSettings.qml",
+    "permissions": [
+        "settings_read",
+        "settings_write"
+    ]
+}
