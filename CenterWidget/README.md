@@ -1,15 +1,15 @@
-# CenterWidget for DankMaterialShell
+# CenterWidget
 
-A combined time, date, and weather widget for [DankMaterialShell](https://github.com/DankMaterialShell/dms) with dynamic color support.
+A combined time, date, and weather widget for DankMaterialShell with dynamic color support.
 
 ![DMS Plugin](https://img.shields.io/badge/DMS-Plugin-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Screenshots
 
-![Widget](widget.png?v=3)
+![Widget](widget.png)
 
-![Settings](screenshot.png?v=3)
+![Settings](screenshot.png)
 
 ## Features
 
@@ -39,9 +39,16 @@ A combined time, date, and weather widget for [DankMaterialShell](https://github
 
 ## Installation
 
+Clone to plugins directory or symlink:
+
 ```bash
+# Option 1: Clone entire repo
 cd ~/.config/DankMaterialShell/plugins
-git clone https://github.com/jimallen/dms-center-widget.git CenterWidget
+git clone https://github.com/jimallen/dms-plugins.git
+ln -s dms-plugins/CenterWidget CenterWidget
+
+# Option 2: Symlink if already cloned elsewhere
+ln -s /path/to/dms-plugins/CenterWidget ~/.config/DankMaterialShell/plugins/CenterWidget
 ```
 
 Then enable the plugin in DMS Settings > Plugins.
@@ -50,16 +57,25 @@ Then enable the plugin in DMS Settings > Plugins.
 
 Access settings through DMS Settings > Plugins > Center Widget:
 
+### Display Options
+- **Show Date** - Toggle date display
 - **Show Weather** - Toggle weather display
-- **Time Color** - Custom color for time
-- **Date Color** - Custom color for date
-- **Weather Color** - Fallback color for weather (when dynamic colors are unavailable)
-- **Separator Color** - Color for dot separators
+- **Show Seconds** - Toggle seconds in time display
+
+### Dynamic Colors
+- **Dynamic Temperature Color** - Temperature changes color based on value
+- **Dynamic Icon Color** - Icon changes color based on weather conditions
+
+### Colors
+- **Time Color** - Custom color for time (default: #d8bbf2)
+- **Date Color** - Custom color for date (default: #bcc2ff)
+- **Weather Color** - Fallback color for weather (default: #cac1e9)
+- **Separator Color** - Color for dot separators (default: #908f9c)
 
 ## Requirements
 
 - DankMaterialShell
-- Weather enabled in DMS Settings
+- Weather enabled in DMS Settings (for weather display)
 
 ## License
 

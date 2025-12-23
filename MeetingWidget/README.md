@@ -15,8 +15,8 @@ Bar widget displaying your next Google Calendar meeting with one-click join.
 
 ## Requirements
 
+- DankMaterialShell
 - Google OAuth credentials from Google Cloud Console
-- GCalService enabled in DMS
 
 ## Setup
 
@@ -28,13 +28,13 @@ Bar widget displaying your next Google Calendar meeting with one-click join.
 4. Add scope: `https://www.googleapis.com/auth/calendar.readonly`
 5. Create OAuth 2.0 Client ID (Desktop app type)
 6. Add redirect URI: `http://localhost:8085/callback` (port configurable)
-7. Download JSON and save to `~/.config/DankMaterialShell/gcal-credentials.json`
+7. Download JSON and save to `~/.config/gcal/gcal-credentials.json`
 
 ### 2. Authenticate
 
 ```bash
-dms gcal auth               # Uses default port 8085
-dms gcal auth --port 9000   # Use custom port (must match redirect URI)
+gcal auth               # Uses default port 8085
+gcal auth --port 9000   # Use custom port (must match redirect URI)
 ```
 
 ### 3. Enable Plugin
@@ -78,10 +78,12 @@ When enabled, adds a Meetings tab to DankDash with:
 ## CLI Commands
 
 ```bash
-dms gcal auth       # Authenticate with Google
-dms gcal status     # Check connection status
-dms gcal logout     # Disconnect account
-dms gcal events     # Fetch events (for debugging)
+gcal auth       # Authenticate with Google
+gcal status     # Check connection status
+gcal logout     # Disconnect account
+gcal events     # Fetch events (for debugging)
 ```
 
-See [GOOGLE_CALENDAR.md](../../../docs/GOOGLE_CALENDAR.md) for full documentation.
+## License
+
+MIT
