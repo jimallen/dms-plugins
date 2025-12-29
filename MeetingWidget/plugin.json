@@ -9,9 +9,6 @@
     "type": "widget",
     "capabilities": ["dankbar-widget"],
     "component": "./MeetingWidget.qml",
-    "tabComponent": "./MeetingsTab.qml",
-    "tabName": "Meetings",
-    "tabIcon": "event",
     "settings": "./MeetingWidgetSettings.qml",
     "permissions": [
         "settings_read",

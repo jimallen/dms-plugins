@@ -16,13 +16,6 @@ PluginSettings {
     }
 
     ToggleSetting {
-        settingKey: "showMeetingsTab"
-        label: "Show Meetings Tab"
-        description: "Display Meetings tab in DankDash"
-        defaultValue: true
-    }
-
-    ToggleSetting {
         settingKey: "showCountdown"
         label: "Show Countdown"
         description: "Display time until next meeting in the bar"

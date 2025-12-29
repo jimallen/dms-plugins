@@ -10,8 +10,11 @@ Bar widget displaying your next Google Calendar meeting with one-click join.
   - **Green** - 1:1 meetings (1 attendee)
   - **Red** - Conflicting meetings
 - Countdown timer ("in 45m", "Now")
-- Click to open Meetings tab in DankDash
-- Optional Meetings tab in DankDash with full meeting list
+- Click to open meeting list popout with full details
+- Right-click to manually refresh calendar data
+- Expandable meeting cards with attendee info
+- One-click join for video meetings (Zoom, Meet, Teams, WebEx)
+- Service status indicator with last refresh time
 
 ## Requirements
 
@@ -78,10 +81,10 @@ gcal status
 
 ### 4. Enable Plugin
 
-1. Open DMS Settings → Plugins
+1. Open DMS Settings -> Plugins
 2. Click "Scan for Plugins"
 3. Enable MeetingWidget
-4. Add `MeetingWidget` to your DankBar widget list
+4. Add `meetingWidget` to your DankBar widget list
 
 ## Configuration
 
@@ -89,8 +92,7 @@ Available settings in plugin settings:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `showMeetingsTab` | true | Show Meetings tab in DankDash |
-| `showCountdown` | true | Show time until meeting |
+| `showCountdown` | true | Show time until meeting in bar |
 | `refreshMinutes` | 5 | How often to fetch calendar updates |
 | `meetingColor` | #a6c8ff | Regular meeting color |
 | `oneOnOneColor` | #c3e88d | 1:1 meeting color |
@@ -105,14 +107,32 @@ Available settings in plugin settings:
 - **[Title] in [time]** - Next meeting with countdown
 - **[Title] Now** - Meeting currently in progress
 
-## Meetings Tab
+## Meeting Popout
 
-When enabled, adds a Meetings tab to DankDash with:
-- Expandable accordion for each meeting
-- Attendee list with count
-- Join buttons for video meetings (Zoom, Meet, Teams, WebEx)
+Click the widget to open a dropdown with:
+- Full list of upcoming meetings (next 48h)
+- Expandable cards with meeting details
+- Attendee list
+- Join buttons for video meetings
 - Conflict indicators
 - Color-coded meeting types
+- Status bar showing connection state and last refresh time
+- Manual refresh button
+
+## Status Indicator
+
+The popout displays a status indicator showing the gcal service state:
+
+| Status | Color | Description |
+|--------|-------|-------------|
+| Connected | Green | Successfully connected, shows last refresh time |
+| Refreshing | Blue | Currently fetching calendar data |
+| Error | Red | Failed to fetch data (check gcal CLI) |
+| Not configured | Gray | gcal not authenticated |
+
+**Manual Refresh:**
+- Click the refresh button in the popout status bar
+- Right-click the widget in the bar for quick refresh
 
 ## gcal CLI Commands
 
