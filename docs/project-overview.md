@@ -77,11 +77,14 @@ DankMaterialShell Plugin Architecture
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| Bar Widget | `MeetingWidget.qml` | Main pill displayed in DankBar |
-| Meetings Tab | `MeetingsTab.qml` | Full meeting list in DankDash |
+| Bar Widget | `MeetingWidget.qml` | Main bar pill with slideout panel |
+| Slideout Panel | `MeetingSlideout.qml` | Full-height side panel for meeting list |
 | Settings | `MeetingWidgetSettings.qml` | Plugin configuration UI |
-| Service | `GCalService.qml` | Singleton for calendar data |
 | Manifest | `plugin.json` | Plugin metadata and registration |
+
+### Keyboard Shortcut (Hyprland)
+
+`Super + Ctrl + M` - Toggle meeting slideout
 
 ### Setup
 

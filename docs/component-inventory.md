@@ -10,19 +10,18 @@ This document catalogs all QML components in the dms-plugins repository, organiz
 
 | Component | Type | Purpose | Lines |
 |-----------|------|---------|-------|
-| MeetingWidget | PluginComponent | Main plugin entry point | 233 |
-| MeetingsTab | Item | Full meeting list view | 540 |
-| MeetingWidgetSettings | PluginSettings | Configuration panel | 266 |
-| GCalService | Singleton | Calendar data service | 115 |
+| MeetingWidget | PluginComponent | Main plugin with bar widget and slideout | 796 |
+| MeetingSlideout | PanelWindow | Full-height side panel for meeting list | 173 |
+| MeetingWidgetSettings | PluginSettings | Configuration panel | 273 |
 
 ### CenterWidget
 
 | Component | Type | Purpose | Lines |
 |-----------|------|---------|-------|
-| CenterWidget | PluginComponent | Time/date/weather display | 193 |
+| CenterWidget | PluginComponent | Time/date/weather display | 206 |
 | CenterWidgetSettings | PluginSettings | Configuration panel | 107 |
 
-**Total Lines of Code**: ~1,454 LOC (6 components)
+**Total Lines of Code**: ~1,555 LOC (5 components)
 
 ---
 
@@ -31,24 +30,38 @@ This document catalogs all QML components in the dms-plugins repository, organiz
 ### MeetingWidget.qml
 
 **Type**: `PluginComponent`
-**Purpose**: Main bar widget showing next meeting with countdown
+**Purpose**: Main bar widget with slideout panel showing 14 days of meetings
+
+#### Keyboard Shortcut (Hyprland)
+
+```
+Super + Ctrl + M    Toggle meeting slideout
+```
+
+```bash
+# Add to ~/.config/hypr/UserConfigs/UserKeybinds.conf
+bind = $mainMod CTRL, M, exec, dms ipc call widget toggle meetingWidget
+```
+
+For other compositors, use the IPC command directly or configure an equivalent keybind.
 
 #### Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `popoutService` | var | null | Service for DankDash popout |
 | `refreshMinutes` | int | 5 | Calendar refresh interval |
-| `showCountdown` | bool | true | Show time until meeting |
+| `showCountdown` | bool | true | Show countdown in bar |
+| `showNextMeetingInBar` | bool | true | Show meeting info (false = icon only) |
+| `showCountdownInBar` | bool | false | Show only countdown time |
 | `meetingColor` | color | #a6c8ff | Regular meeting color |
 | `oneOnOneColor` | color | #c3e88d | 1:1 meeting color |
 | `conflictColor` | color | #ffb4ab | Conflict indicator color |
 | `noMeetingColor` | color | #90a4ae | Empty state color |
-| `events` | var | [] | Cached calendar events |
+| `events` | var | [] | Cached calendar events (14 days) |
 | `nextEvent` | var | null | Next upcoming meeting |
 | `loading` | bool | false | Loading state |
 | `configured` | bool | false | OAuth configured |
-| `showMeetingsTab` | bool | true | Show tab in dashboard |
+| `isSlideoutVisible` | bool | readonly | Slideout visibility state |
 
 #### Functions
 
@@ -56,41 +69,50 @@ This document catalogs all QML components in the dms-plugins repository, organiz
 |----------|------------|---------|-------------|
 | `getEventColor` | event | color | Get color based on event type |
 | `refresh` | - | void | Trigger calendar refresh |
-| `getTimeUntil` | startTime | string | Format time until event |
+| `getTimeUntil` | startTime | string | Format time until event (days/hours/minutes) |
 | `formatTime` | isoTime | string | Format time display |
+| `formatDate` | isoTime | string | Format date display |
+| `formatDateHeader` | isoTime | string | Format date header (Today, Tomorrow, etc.) |
+| `getDuration` | start, end | string | Calculate meeting duration |
 | `findNextEvent` | - | void | Find and set nextEvent |
-| `joinMeeting` | url | void | Open meeting URL |
+| `isEventPast` | event | bool | Check if event has ended |
+| `isNextMeeting` | event | bool | Check if this is next meeting |
+| `isSameDay` | time1, time2 | bool | Check if two times are same day |
+| `getDateKey` | isoTime | string | Get date key for grouping |
 
 ---
 
-### MeetingsTab.qml
+### MeetingSlideout.qml
 
-**Type**: `Item`
-**Purpose**: Full meeting list with expandable accordion cards
+**Type**: `PanelWindow`
+**Purpose**: Full-height side panel for meeting list with slide animation
 
 #### Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `pluginId` | string | "" | Plugin identifier |
-| `expandedIndex` | int | -1 | Currently expanded card |
-| `available` | bool | false | Service available |
-| `events` | var | [] | Event list |
-| `loading` | bool | false | Loading state |
-| `nextMeeting` | var | computed | Next upcoming meeting |
+| `layerNamespace` | string | "dms:meeting-slideout" | Wayland layer namespace |
+| `isVisible` | bool | false | Panel visibility state |
+| `targetScreen` | var | null | Target screen for panel |
+| `slideoutWidth` | real | 380 | Panel width |
+| `title` | string | "Upcoming Meetings" | Header title |
+| `subtitle` | string | "" | Header subtitle |
+| `content` | alias | - | Default property for content |
 
 #### Functions
 
-| Function | Parameters | Returns | Description |
-|----------|------------|---------|-------------|
-| `getEventColor` | event | color | Get color for event |
-| `formatTime` | isoTime | string | Format time (12/24h) |
-| `formatDate` | isoTime | string | Format date display |
-| `getTimeUntil` | startTime | string | Time until event |
-| `getDuration` | start, end | string | Event duration |
-| `isEventPast` | event | bool | Check if ended |
-| `isNextMeeting` | event | bool | Check if next meeting |
-| `refresh` | - | void | Refresh events |
+| Function | Description |
+|----------|-------------|
+| `show()` | Show the slideout panel |
+| `hide()` | Hide the slideout panel |
+| `toggle()` | Toggle visibility |
+
+#### Wayland Integration
+
+Uses `WlrLayershell` for Wayland layer shell:
+- `WlrLayershell.layer`: Top
+- `WlrLayershell.exclusiveZone`: 0
+- Anchored to top, bottom, right edges
 
 ---
 
@@ -103,45 +125,13 @@ This document catalogs all QML components in the dms-plugins repository, organiz
 
 | Setting Key | Type | Default | Description |
 |-------------|------|---------|-------------|
-| `showMeetingsTab` | Toggle | true | Show Meetings tab |
-| `showCountdown` | Toggle | true | Show countdown |
-| `refreshMinutes` | Slider | 5 | Refresh interval (1-30) |
+| `showCountdown` | Toggle | true | Show countdown in bar |
+| `showNextMeetingInBar` | Toggle | true | Show meeting info in bar |
+| `showCountdownInBar` | Toggle | false | Show only countdown time |
+| `refreshMinutes` | Slider | 5 | Refresh interval (1-30 min) |
 | `meetingColor` | Color | #a6c8ff | Meeting color |
 | `conflictColor` | Color | #ffb4ab | Conflict color |
 | `noMeetingColor` | Color | #90a4ae | No meeting color |
-
----
-
-### GCalService.qml
-
-**Type**: `Singleton`
-**Purpose**: Centralized calendar data management
-
-#### Pragmas
-
-```qml
-pragma Singleton
-pragma ComponentBehavior: Bound
-```
-
-#### Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `available` | bool | false | Service configured |
-| `loading` | bool | false | Currently fetching |
-| `events` | var | [] | Cached events |
-| `lastError` | string | "" | Last error message |
-
-#### Functions
-
-| Function | Parameters | Returns | Description |
-|----------|------------|---------|-------------|
-| `refresh` | - | void | Fetch latest events |
-| `checkStatus` | - | void | Check OAuth status |
-| `getEventsForDate` | date | array | Filter by date |
-| `hasEventsForDate` | date | bool | Has events on date |
-| `getTodayEvents` | - | array | Today's events |
 
 ---
 

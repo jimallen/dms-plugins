@@ -1,7 +1,9 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Common
+import qs.Services
 import qs.Widgets
 import qs.Modules.Plugins
 
@@ -10,10 +12,13 @@ PluginComponent {
 
     readonly property int refreshMinutes: pluginData.refreshMinutes || 5
     readonly property bool showCountdown: pluginData.showCountdown !== undefined ? pluginData.showCountdown : true
+    readonly property bool showNextMeetingInBar: pluginData.showNextMeetingInBar !== undefined ? pluginData.showNextMeetingInBar : true
+    readonly property bool showCountdownInBar: pluginData.showCountdownInBar !== undefined ? pluginData.showCountdownInBar : false
     readonly property color meetingColor: pluginData.meetingColor || "#a6c8ff"
     readonly property color oneOnOneColor: pluginData.oneOnOneColor || "#c3e88d"
     readonly property color conflictColor: pluginData.conflictColor || "#ffb4ab"
     readonly property color noMeetingColor: pluginData.noMeetingColor || "#90a4ae"
+    readonly property bool isSlideoutVisible: meetingSlideout.isVisible
 
     property var events: []
     property var nextEvent: null
@@ -70,9 +75,11 @@ PluginComponent {
 
         if (diff < 0) return "now"
 
-        let hours = Math.floor(diff / (1000 * 60 * 60))
+        let days = Math.floor(diff / (1000 * 60 * 60 * 24))
+        let hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
         let minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
 
+        if (days > 0) return days + "d " + hours + "h"
         if (hours > 0) return hours + "h " + minutes + "m"
         return minutes + "m"
     }
@@ -85,6 +92,30 @@ PluginComponent {
     function formatDate(isoTime) {
         let d = new Date(isoTime)
         return Qt.formatDate(d, "ddd, MMM d")
+    }
+
+    function getDateKey(isoTime) {
+        let d = new Date(isoTime)
+        return Qt.formatDate(d, "yyyy-MM-dd")
+    }
+
+    function isSameDay(isoTime1, isoTime2) {
+        return getDateKey(isoTime1) === getDateKey(isoTime2)
+    }
+
+    function formatDateHeader(isoTime) {
+        let d = new Date(isoTime)
+        let today = new Date()
+        let tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+
+        if (getDateKey(isoTime) === getDateKey(today.toISOString())) {
+            return "Today"
+        } else if (getDateKey(isoTime) === getDateKey(tomorrow.toISOString())) {
+            return "Tomorrow"
+        } else {
+            return Qt.formatDate(d, "dddd, MMM d")
+        }
     }
 
     function getDuration(startTime, endTime) {
@@ -174,7 +205,7 @@ PluginComponent {
 
     Process {
         id: eventsProcess
-        command: ["gcal", "events"]
+        command: ["gcal", "events", "-d", "14"]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
@@ -209,33 +240,33 @@ PluginComponent {
                 DankIcon {
                     name: root.nextEvent ? "event" : "event_busy"
                     size: Theme.iconSize - 6
-                    color: root.getEventColor(root.nextEvent)
+                    color: root.isSlideoutVisible ? Theme.primary : root.getEventColor(root.nextEvent)
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
                 StyledText {
-                    visible: !root.configured
+                    visible: root.showNextMeetingInBar && !root.configured
                     text: "Not configured"
                     font.pixelSize: Theme.fontSizeMedium
                     color: root.noMeetingColor
                 }
 
                 StyledText {
-                    visible: root.configured && root.loading
+                    visible: root.showNextMeetingInBar && root.configured && root.loading
                     text: "Loading..."
                     font.pixelSize: Theme.fontSizeMedium
                     color: root.noMeetingColor
                 }
 
                 StyledText {
-                    visible: root.configured && !root.loading && !root.nextEvent
+                    visible: root.showNextMeetingInBar && root.configured && !root.loading && !root.nextEvent
                     text: "No meetings"
                     font.pixelSize: Theme.fontSizeMedium
                     color: root.noMeetingColor
                 }
 
                 StyledText {
-                    visible: root.configured && !root.loading && root.nextEvent
+                    visible: root.showNextMeetingInBar && root.configured && !root.loading && root.nextEvent
                     text: {
                         if (!root.nextEvent) return ""
                         let countdown = root.showCountdown ? " in " + root.getTimeUntil(root.nextEvent.start) : ""
@@ -243,6 +274,13 @@ PluginComponent {
                         if (title.length > 20) title = title.substring(0, 18) + "..."
                         return title + countdown
                     }
+                    font.pixelSize: Theme.fontSizeMedium
+                    color: root.getEventColor(root.nextEvent)
+                }
+
+                StyledText {
+                    visible: !root.showNextMeetingInBar && root.showCountdownInBar && root.configured && !root.loading && root.nextEvent
+                    text: root.nextEvent ? root.getTimeUntil(root.nextEvent.start) : ""
                     font.pixelSize: Theme.fontSizeMedium
                     color: root.getEventColor(root.nextEvent)
                 }
@@ -262,13 +300,14 @@ PluginComponent {
                 DankIcon {
                     name: root.nextEvent ? "event" : "event_busy"
                     size: Theme.iconSize - 8
-                    color: root.nextEvent?.hasConflict ? root.conflictColor :
-                           root.nextEvent ? root.meetingColor : root.noMeetingColor
+                    color: root.isSlideoutVisible ? Theme.primary :
+                           (root.nextEvent?.hasConflict ? root.conflictColor :
+                           root.nextEvent ? root.meetingColor : root.noMeetingColor)
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
 
                 StyledText {
-                    visible: root.configured && !root.loading && root.nextEvent && root.showCountdown
+                    visible: (root.showNextMeetingInBar && root.showCountdown || root.showCountdownInBar) && root.configured && !root.loading && root.nextEvent
                     text: root.nextEvent ? root.getTimeUntil(root.nextEvent.start) : ""
                     font.pixelSize: Theme.fontSizeSmall
                     color: root.nextEvent?.hasConflict ? root.conflictColor : root.meetingColor
@@ -276,7 +315,7 @@ PluginComponent {
                 }
 
                 StyledText {
-                    visible: root.configured && !root.loading && root.events.length > 0
+                    visible: root.showNextMeetingInBar && root.configured && !root.loading && root.events.length > 0
                     text: root.events.length.toString()
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceVariantText
@@ -290,24 +329,28 @@ PluginComponent {
         root.refresh()
     }
 
-    popoutWidth: 380
-    popoutHeight: 450
+    pillClickAction: () => {
+        meetingSlideout.toggle()
+    }
 
-    popoutContent: Component {
-        PopoutComponent {
-            id: popoutRoot
+    MeetingSlideout {
+        id: meetingSlideout
+        targetScreen: root.parentScreen
+        slideoutWidth: 380
+        title: "Upcoming Meetings"
+        subtitle: root.configured ?
+            (root.events.length + " meetings in next 14 days") :
+            "Calendar not configured"
 
-            headerText: "Upcoming Meetings"
-            detailsText: root.configured ?
-                (root.events.length + " meetings in next 48h") :
-                "Calendar not configured"
-            showCloseButton: true
+        property int expandedIndex: -1
 
-            property int expandedIndex: -1
+        Column {
+            anchors.fill: parent
+            spacing: Theme.spacingM
 
             Item {
                 width: parent.width
-                implicitHeight: 320
+                height: parent.height - statusRow.height - Theme.spacingM
 
                 Rectangle {
                     anchors.fill: parent
@@ -322,7 +365,7 @@ PluginComponent {
                         model: root.configured ? root.events : []
                         spacing: Theme.spacingXS
 
-                        delegate: Rectangle {
+                        delegate: Column {
                             id: meetingDelegate
 
                             required property var modelData
@@ -330,16 +373,37 @@ PluginComponent {
 
                             readonly property bool isPast: root.isEventPast(modelData)
                             readonly property bool isNext: root.isNextMeeting(modelData)
-                            readonly property bool isExpanded: popoutRoot.expandedIndex === index
+                            readonly property bool isExpanded: meetingSlideout.expandedIndex === index
+                            readonly property bool showDateHeader: index === 0 || !root.isSameDay(root.events[index - 1].start, modelData.start)
 
                             width: meetingsList.width
-                            height: delegateContent.implicitHeight + Theme.spacingS * 2
-                            radius: Theme.cornerRadius
-                            opacity: isPast ? 0.5 : 1.0
-                            color: isNext ?
-                                Qt.rgba(root.getEventColor(modelData).r, root.getEventColor(modelData).g, root.getEventColor(modelData).b, 0.15) :
-                                Theme.withAlpha(Theme.surfaceContainer, 0.5)
-                            border.color: isNext ? root.getEventColor(modelData) : "transparent"
+                            spacing: Theme.spacingXS
+
+                            Item {
+                                visible: showDateHeader
+                                width: parent.width
+                                height: visible ? dateHeaderText.height + Theme.spacingS : 0
+
+                                StyledText {
+                                    id: dateHeaderText
+                                    text: root.formatDateHeader(modelData.start)
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.primary
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Rectangle {
+                                id: meetingCard
+                                width: parent.width
+                                height: delegateContent.implicitHeight + Theme.spacingS * 2
+                                radius: Theme.cornerRadius
+                                opacity: isPast ? 0.5 : 1.0
+                                color: isNext ?
+                                    Qt.rgba(root.getEventColor(modelData).r, root.getEventColor(modelData).g, root.getEventColor(modelData).b, 0.15) :
+                                    Theme.withAlpha(Theme.surfaceContainer, 0.5)
+                                border.color: isNext ? root.getEventColor(modelData) : "transparent"
                             border.width: isNext ? 1 : 0
 
                             Behavior on height {
@@ -367,88 +431,87 @@ PluginComponent {
                                 anchors.leftMargin: Theme.spacingS + 8
                                 anchors.rightMargin: Theme.spacingS
                                 anchors.topMargin: Theme.spacingS
-                                spacing: Theme.spacingS
+                                spacing: Theme.spacingXS
 
+                                // Title row
                                 Row {
                                     width: parent.width
                                     spacing: Theme.spacingS
 
-                                    Column {
-                                        width: parent.width - rightControls.width - Theme.spacingS
-                                        spacing: 2
+                                    StyledText {
+                                        text: modelData.title || "Untitled"
+                                        font.pixelSize: Theme.fontSizeMedium
+                                        font.weight: Font.Medium
+                                        color: isPast ? Theme.surfaceVariantText : Theme.surfaceText
+                                        elide: Text.ElideRight
+                                        width: parent.width - expandChevron.width - Theme.spacingS
+                                    }
+
+                                    DankIcon {
+                                        id: expandChevron
+                                        name: isExpanded ? "expand_less" : "expand_more"
+                                        size: 16
+                                        color: Theme.surfaceVariantText
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+
+                                // Info row: time • attendees on left, countdown + video on right
+                                Item {
+                                    width: parent.width
+                                    height: infoRowLeft.height
+
+                                    Row {
+                                        id: infoRowLeft
+                                        spacing: Theme.spacingS
 
                                         StyledText {
-                                            text: modelData.title || "Untitled"
-                                            font.pixelSize: Theme.fontSizeMedium
-                                            font.weight: Font.Medium
-                                            color: isPast ? Theme.surfaceVariantText : Theme.surfaceText
-                                            elide: Text.ElideRight
-                                            width: parent.width
+                                            text: root.formatTime(modelData.start) + " – " + root.formatTime(modelData.end)
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.surfaceVariantText
                                         }
 
-                                        Row {
-                                            spacing: Theme.spacingS
+                                        StyledText {
+                                            visible: modelData.attendeeCount > 0
+                                            text: "•"
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.surfaceVariantText
+                                        }
 
-                                            StyledText {
-                                                text: root.formatTime(modelData.start) + " – " + root.formatTime(modelData.end)
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                color: Theme.surfaceVariantText
-                                            }
-
-                                            StyledText {
-                                                visible: modelData.attendeeCount > 0
-                                                text: "•"
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                color: Theme.surfaceVariantText
-                                            }
-
-                                            StyledText {
-                                                visible: modelData.attendeeCount > 0
-                                                text: modelData.attendeeCount === 1 ? "1:1" : (modelData.attendeeCount + " attendees")
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                color: modelData.attendeeCount === 1 ? root.oneOnOneColor : Theme.surfaceVariantText
-                                            }
+                                        StyledText {
+                                            visible: modelData.attendeeCount > 0
+                                            text: modelData.attendeeCount === 1 ? "1:1" : (modelData.attendeeCount + " attendees")
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: modelData.attendeeCount === 1 ? root.oneOnOneColor : Theme.surfaceVariantText
                                         }
                                     }
 
                                     Row {
-                                        id: rightControls
+                                        anchors.right: parent.right
                                         spacing: Theme.spacingS
-                                        anchors.verticalCenter: parent.verticalCenter
 
                                         StyledText {
                                             text: {
                                                 if (isPast) return "ended"
                                                 let timeUntil = root.getTimeUntil(modelData.start)
-                                                return timeUntil === "now" ? "Now" : ("in " + timeUntil)
+                                                return timeUntil === "now" ? "now" : timeUntil
                                             }
                                             font.pixelSize: Theme.fontSizeSmall
                                             color: isNext ? root.getEventColor(modelData) : Theme.surfaceVariantText
                                             font.weight: isNext ? Font.Medium : Font.Normal
-                                            anchors.verticalCenter: parent.verticalCenter
                                         }
 
-                                        Rectangle {
-                                            id: joinButton
-                                            visible: isNext && modelData.meetingUrl && modelData.meetingUrl !== ""
-                                            width: visible ? 60 : 0
-                                            height: 28
-                                            radius: Theme.cornerRadius
-                                            color: joinArea.containsMouse ?
-                                                Qt.lighter(root.getEventColor(modelData), 1.2) :
-                                                root.getEventColor(modelData)
-
-                                            StyledText {
-                                                anchors.centerIn: parent
-                                                text: "Join"
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                font.weight: Font.Medium
-                                                color: Theme.surfaceContainerLowest
-                                            }
+                                        DankIcon {
+                                            visible: modelData.meetingUrl && modelData.meetingUrl !== ""
+                                            name: "videocam"
+                                            size: 14
+                                            color: isNext ? root.getEventColor(modelData) : Theme.surfaceVariantText
+                                            anchors.verticalCenter: parent.verticalCenter
 
                                             MouseArea {
                                                 id: joinArea
                                                 anchors.fill: parent
+                                                anchors.margins: -6
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: function(mouse) {
@@ -456,13 +519,6 @@ PluginComponent {
                                                     Qt.openUrlExternally(modelData.meetingUrl)
                                                 }
                                             }
-                                        }
-
-                                        DankIcon {
-                                            name: isExpanded ? "expand_less" : "expand_more"
-                                            size: 18
-                                            color: Theme.surfaceVariantText
-                                            anchors.verticalCenter: parent.verticalCenter
                                         }
                                     }
                                 }
@@ -547,22 +603,6 @@ PluginComponent {
                                                 }
                                             }
 
-                                            Row {
-                                                spacing: Theme.spacingXS
-                                                visible: modelData.meetingUrl && modelData.meetingUrl !== ""
-
-                                                DankIcon {
-                                                    name: "videocam"
-                                                    size: 14
-                                                    color: Theme.surfaceVariantText
-                                                }
-
-                                                StyledText {
-                                                    text: "Video meeting"
-                                                    font.pixelSize: Theme.fontSizeSmall
-                                                    color: Theme.surfaceVariantText
-                                                }
-                                            }
                                         }
                                     }
 
@@ -601,7 +641,7 @@ PluginComponent {
 
                                     Rectangle {
                                         id: joinButtonExpanded
-                                        visible: !isNext && modelData.meetingUrl && modelData.meetingUrl !== ""
+                                        visible: modelData.meetingUrl && modelData.meetingUrl !== ""
                                         width: 90
                                         height: 32
                                         radius: Theme.cornerRadius
@@ -647,41 +687,42 @@ PluginComponent {
                                 cursorShape: Qt.PointingHandCursor
                                 z: -1
                                 onClicked: {
-                                    if (popoutRoot.expandedIndex === index) {
-                                        popoutRoot.expandedIndex = -1
+                                    if (meetingSlideout.expandedIndex === index) {
+                                        meetingSlideout.expandedIndex = -1
                                     } else {
-                                        popoutRoot.expandedIndex = index
+                                        meetingSlideout.expandedIndex = index
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    StyledText {
-                        visible: !root.configured
-                        anchors.centerIn: parent
-                        text: "Google Calendar not configured"
-                        font.pixelSize: Theme.fontSizeMedium
-                        color: Theme.surfaceVariantText
-                    }
+                StyledText {
+                    visible: !root.configured
+                    anchors.centerIn: parent
+                    text: "Google Calendar not configured"
+                    font.pixelSize: Theme.fontSizeMedium
+                    color: Theme.surfaceVariantText
+                }
 
-                    StyledText {
-                        visible: root.configured && root.events.length === 0 && !root.loading
-                        anchors.centerIn: parent
-                        text: "No upcoming meetings"
-                        font.pixelSize: Theme.fontSizeMedium
-                        color: Theme.surfaceVariantText
-                    }
+                StyledText {
+                    visible: root.configured && root.events.length === 0 && !root.loading
+                    anchors.centerIn: parent
+                    text: "No upcoming meetings"
+                    font.pixelSize: Theme.fontSizeMedium
+                    color: Theme.surfaceVariantText
+                }
 
-                    StyledText {
-                        visible: root.loading
-                        anchors.centerIn: parent
-                        text: "Loading..."
-                        font.pixelSize: Theme.fontSizeMedium
-                        color: Theme.surfaceVariantText
-                    }
+                StyledText {
+                    visible: root.loading
+                    anchors.centerIn: parent
+                    text: "Loading..."
+                    font.pixelSize: Theme.fontSizeMedium
+                    color: Theme.surfaceVariantText
                 }
             }
+        }
 
             Row {
                 id: statusRow
@@ -716,7 +757,7 @@ PluginComponent {
                     }
                 }
 
-                Item { height: 1; width: parent.width - statusInfo.implicitWidth - refreshButton.width - Theme.spacingM * 2 }
+                Item { height: 1; width: parent.width - statusInfo.width - refreshButton.width - Theme.spacingM * 2 }
 
                 Rectangle {
                     id: refreshButton

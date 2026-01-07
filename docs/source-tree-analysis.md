@@ -16,10 +16,9 @@ dms-plugins/
 ├── MeetingWidget/                  # Google Calendar Plugin
 │   ├── plugin.json                 # Plugin manifest (entry point)
 │   ├── README.md                   # Plugin documentation
-│   ├── MeetingWidget.qml           # Main bar widget component
-│   ├── MeetingsTab.qml             # Full meeting list tab
-│   ├── MeetingWidgetSettings.qml   # Settings panel
-│   └── GCalService.qml             # Calendar data service (singleton)
+│   ├── MeetingWidget.qml           # Main bar widget with slideout
+│   ├── MeetingSlideout.qml         # Full-height side panel
+│   └── MeetingWidgetSettings.qml   # Settings panel
 │
 └── CenterWidget/                   # Time/Date/Weather Plugin
     ├── plugin.json                 # Plugin manifest (entry point)
@@ -47,7 +46,6 @@ dms-plugins/
   "type": "widget",
   "capabilities": ["dankbar-widget"],
   "component": "./MeetingWidget.qml",
-  "tabComponent": "./MeetingsTab.qml",
   "settings": "./MeetingWidgetSettings.qml",
   "permissions": ["settings_read", "settings_write"]
 }
@@ -72,16 +70,17 @@ dms-plugins/
 
 | File | LOC | Purpose |
 |------|-----|---------|
-| `MeetingWidget.qml` | 233 | Main plugin with bar pill variants |
-| `MeetingsTab.qml` | 540 | Full meeting list with expandable cards |
-| `MeetingWidgetSettings.qml` | 266 | Settings UI with OAuth setup |
-| `GCalService.qml` | 115 | Singleton for calendar data |
+| `MeetingWidget.qml` | 796 | Main plugin with bar pills and slideout |
+| `MeetingSlideout.qml` | 173 | Full-height side panel for meeting list |
+| `MeetingWidgetSettings.qml` | 273 | Settings UI with OAuth setup |
+
+**Keyboard Shortcut:** `Super + Ctrl + M` - Toggle meeting slideout (Hyprland)
 
 #### CenterWidget
 
 | File | LOC | Purpose |
 |------|-----|---------|
-| `CenterWidget.qml` | 193 | Main plugin with time/date/weather |
+| `CenterWidget.qml` | 206 | Main plugin with time/date/weather |
 | `CenterWidgetSettings.qml` | 107 | Settings UI for colors and display |
 
 ### Documentation
@@ -99,22 +98,22 @@ dms-plugins/
 import QtQuick                    // Core Qt Quick
 import Quickshell                 // Shell integration
 import Quickshell.Io              // Process, StdioCollector
+import Quickshell.Wayland         // WlrLayershell (slideout)
 import qs.Common                  // Theme, StyledText, SettingsData
-import qs.Services                // WeatherService
+import qs.Services                // WeatherService, CompositorService
 import qs.Widgets                 // DankIcon, DankListView
 import qs.Modules.Plugins         // PluginComponent, PluginSettings
 ```
 
 ### Import Usage by Component
 
-| Component | QtQuick | Quickshell | Quickshell.Io | qs.Common | qs.Services | qs.Widgets | qs.Modules.Plugins |
-|-----------|---------|------------|---------------|-----------|-------------|------------|-------------------|
-| MeetingWidget | x | x | x | x | - | x | x |
-| MeetingsTab | x | - | x | x | - | x | - |
-| MeetingWidgetSettings | x | - | - | x | - | x | x |
-| GCalService | x | x | x | - | - | - | - |
-| CenterWidget | x | x | - | x | x | x | x |
-| CenterWidgetSettings | x | - | - | x | - | x | x |
+| Component | QtQuick | Quickshell | Quickshell.Io | Quickshell.Wayland | qs.Common | qs.Services | qs.Widgets | qs.Modules.Plugins |
+|-----------|---------|------------|---------------|-------------------|-----------|-------------|------------|-------------------|
+| MeetingWidget | x | x | x | x | x | x | x | x |
+| MeetingSlideout | x | x | - | x | x | x | x | - |
+| MeetingWidgetSettings | x | - | - | - | x | - | x | x |
+| CenterWidget | x | x | - | - | x | x | x | x |
+| CenterWidgetSettings | x | - | - | - | x | - | x | x |
 
 ## File Relationships
 
@@ -125,19 +124,19 @@ plugin.json
     ├── component ──────────────> MeetingWidget.qml
     │                                   │
     │                                   ├── Uses gcal CLI (via Process)
-    │                                   └── Defines bar pills
+    │                                   ├── Defines bar pills
+    │                                   ├── Contains MeetingSlideout
+    │                                   └── pillClickAction → slideout.toggle()
     │
-    ├── tabComponent ───────────> MeetingsTab.qml
-    │                                   │
-    │                                   └── Uses gcal CLI (via Process)
+    │       MeetingSlideout.qml <───────┘
+    │               │
+    │               ├── PanelWindow with WlrLayershell
+    │               ├── Right-edge anchored slideout
+    │               └── Meeting list with date headers
     │
     └── settings ───────────────> MeetingWidgetSettings.qml
                                         │
                                         └── Provides OAuth setup UI
-
-GCalService.qml (Singleton)
-    │
-    └── Called by: gcal CLI ───────> Google Calendar API
 ```
 
 ### CenterWidget
@@ -160,9 +159,11 @@ plugin.json
 ### Runtime Files (User Config Directory)
 
 ```
-~/.config/DankMaterialShell/
+~/.config/gcal/
 ├── gcal-credentials.json        # OAuth client credentials (MeetingWidget)
-├── gcal-token.json              # OAuth tokens (MeetingWidget)
+└── gcal-token.json              # OAuth tokens (MeetingWidget)
+
+~/.config/DankMaterialShell/
 └── plugins/
     ├── meetingWidget/
     │   └── settings.json        # MeetingWidget settings
@@ -185,12 +186,13 @@ This project has no build step - QML files are interpreted at runtime.
 ### 2. DankBar Integration
 
 **Component**: `horizontalBarPill`, `verticalBarPill`
-**Click Handler**: `pillClickAction` → Opens DankDash
+**Click Handler**: `pillClickAction` → Opens slideout panel
 
-### 3. DankDash Integration (MeetingWidget only)
+### 3. IPC Integration (MeetingWidget)
 
-**Component**: `MeetingsTab`
-**Tab Registration**: Via `tabComponent`, `tabName`, `tabIcon` in manifest
+**Command**: `dms ipc call widget toggle meetingWidget`
+**Keybind**: `Super + Ctrl + M` (Hyprland only)
+**Flow**: IPC → triggerPopout() → pillClickAction() → slideout.toggle()
 
 ### 4. Settings Integration
 
@@ -206,3 +208,4 @@ This project has no build step - QML files are interpreted at runtime.
 | WeatherService | CenterWidget | Weather data |
 | SystemClock | CenterWidget | Time updates |
 | SettingsData | Both | User preferences |
+| CompositorService | MeetingWidget | Screen scale for slideout |

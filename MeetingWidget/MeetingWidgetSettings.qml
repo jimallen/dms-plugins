@@ -22,6 +22,20 @@ PluginSettings {
         defaultValue: true
     }
 
+    ToggleSetting {
+        settingKey: "showNextMeetingInBar"
+        label: "Show Next Meeting in Bar"
+        description: "Display next meeting info in the bar (disable to show only icon)"
+        defaultValue: true
+    }
+
+    ToggleSetting {
+        settingKey: "showCountdownInBar"
+        label: "Show Countdown Only in Bar"
+        description: "Show just the time until next meeting (useful when hiding meeting info)"
+        defaultValue: false
+    }
+
     SliderSetting {
         settingKey: "refreshMinutes"
         label: "Refresh Interval"

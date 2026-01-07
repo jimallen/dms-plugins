@@ -46,16 +46,10 @@ This repository contains Qt/QML plugins for DankMaterialShell (DMS). Both plugin
 |    +---------------+  |
 |    | Bar Pill      |  |  <- Horizontal/Vertical variants
 |    +---------------+  |
-+-----------------------+
-          |
-          v
-+-----------------------+
-|    MeetingsTab        |  <- Full meeting list UI
-+-----------------------+
-          |
-          v
-+-----------------------+
-|    GCalService        |  <- Singleton (data & API)
+|    +---------------+  |
+|    | MeetingSlide- |  |  <- Full-height side panel
+|    | out           |  |
+|    +---------------+  |
 +-----------------------+
           |
           v
@@ -72,14 +66,19 @@ This repository contains Qt/QML plugins for DankMaterialShell (DMS). Both plugin
 ### MeetingWidget.qml (Entry Point)
 
 **Type**: `PluginComponent`
-**Purpose**: Main plugin component registered with DMS plugin system
+**Purpose**: Main plugin component with bar widget and slideout panel
+
+**Keyboard Shortcut**: `Super + Ctrl + M`
 
 **Key Properties**:
 ```qml
-property var events: []           // Cached calendar events
-property var nextEvent: null      // Next upcoming meeting
-property bool loading: false      // Loading state
-property bool configured: false   // OAuth status
+property var events: []              // Cached calendar events (14 days)
+property var nextEvent: null         // Next upcoming meeting
+property bool loading: false         // Loading state
+property bool configured: false      // OAuth status
+property bool isSlideoutVisible      // Slideout visibility
+property bool showNextMeetingInBar   // Show meeting info in bar
+property bool showCountdownInBar     // Show only countdown time
 ```
 
 **UI Variants**:
@@ -91,34 +90,25 @@ property bool configured: false   // OAuth status
 - Process-based CLI calls for data fetching
 - Event-driven state updates
 
-### MeetingsTab.qml (Dashboard View)
+### MeetingSlideout.qml (Side Panel)
 
-**Type**: `Item`
-**Purpose**: Full meeting list with expandable accordion
+**Type**: `PanelWindow`
+**Purpose**: Full-height slideout panel with meeting list
 
 **Key Features**:
-- `DankListView` with custom delegate
+- Full-height right-edge anchored panel
+- `WlrLayershell` Wayland integration
+- Slide animation for show/hide
+- Date-grouped meeting list (Today, Tomorrow, etc.)
 - Expandable meeting cards with attendee details
+- Clean two-row card layout
 - Inline join buttons for video meetings
-- Time-until and duration calculations
 
 **Visual States**:
 - Past meetings (dimmed, 50% opacity)
 - Next meeting (highlighted border)
 - Conflicts (red indicator)
 - 1:1 meetings (green indicator)
-
-### GCalService.qml (Data Service)
-
-**Type**: `Singleton`
-**Purpose**: Centralized calendar data management
-
-**Key Methods**:
-```qml
-function refresh()                    // Fetch latest events
-function checkStatus()                // Check OAuth status
-function getEventsForDate(date)       // Filter events by date
-```
 
 ### Data Flow
 
@@ -132,13 +122,19 @@ function getEventsForDate(date)       // Filter events by date
 2. Event Refresh Cycle
    refresh()
    └── eventsProcess.running = true
-       └── gcal events
+       └── gcal events -d 14
            └── Update events[]
                └── findNextEvent()
 
 3. User Interaction
-   pillClickAction(...)
-   └── popoutService.toggleDankDash(tabIndex, ...)
+   pillClickAction()
+   └── meetingSlideout.toggle()
+
+4. IPC Toggle
+   dms ipc call widget toggle meetingWidget
+   └── triggerPopout()
+       └── pillClickAction()
+           └── meetingSlideout.toggle()
 ```
 
 ---
@@ -343,7 +339,7 @@ import qs.Modules.Plugins         // PluginComponent, PluginSettings
 
 ## Performance Notes
 
-- MeetingWidget: Events limited to 48-hour window
+- MeetingWidget: Events limited to 14-day window
 - CenterWidget: Clock precision set to minutes (not seconds)
 - UI updates throttled by timer intervals
 - Settings loaded once at component creation

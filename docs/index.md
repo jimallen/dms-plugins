@@ -19,10 +19,11 @@
 
 | File | Purpose |
 |------|---------|
-| `MeetingWidget.qml` | Bar widget with countdown |
-| `MeetingsTab.qml` | Dashboard tab with meeting list |
+| `MeetingWidget.qml` | Bar widget with slideout panel |
+| `MeetingSlideout.qml` | Full-height side panel component |
 | `MeetingWidgetSettings.qml` | Settings panel |
-| `GCalService.qml` | Calendar data service |
+
+**Keyboard Shortcut (Hyprland):** `Super + Ctrl + M`
 
 ### CenterWidget Plugin
 

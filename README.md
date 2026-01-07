@@ -9,13 +9,14 @@ A collection of Qt/QML plugins for [DankMaterialShell](https://github.com/pjtsea
 
 ### MeetingWidget
 
-Google Calendar integration widget showing your next meeting with one-click join.
+Google Calendar integration widget with slideout panel showing 14 days of meetings.
 
 **Features:**
-- Next meeting display with countdown timer
+- Next meeting display with countdown timer in bar
+- Slideout panel with date-grouped meeting list
 - Color-coded meetings (regular, 1:1, conflicts)
-- Meetings tab in DankDash with full list
 - One-click join for video meetings (Zoom, Meet, Teams, WebEx)
+- Keyboard shortcut: `Super + Ctrl + M` (Hyprland)
 
 **Requirements:** [gcal CLI](https://github.com/jimallen/gcal)
 

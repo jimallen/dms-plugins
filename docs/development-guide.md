@@ -164,10 +164,13 @@ PluginComponent {
     horizontalBarPill: Component { /* ... */ }
     verticalBarPill: Component { /* ... */ }
 
-    // Click handler
-    pillClickAction: (x, y, width, section, screen) => {
-        popoutService?.toggleDankDash(tabIndex, x, y, width, section, screen)
+    // Simple click handler (no params)
+    pillClickAction: () => {
+        mySlideout.toggle()
     }
+
+    // Or with position params for popouts
+    // pillClickAction: (x, y, width, section, screen) => { ... }
 }
 ```
 

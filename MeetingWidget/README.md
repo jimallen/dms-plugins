@@ -1,20 +1,22 @@
 # MeetingWidget
 
-Bar widget displaying your next Google Calendar meeting with one-click join.
+Bar widget displaying your Google Calendar meetings with a full-screen slideout panel.
 
 ## Features
 
 - Shows next upcoming meeting in the bar
+- **Slideout panel** with 14 days of meetings (side panel like Notepad)
+- **Date headers** - Meetings grouped by day (Today, Tomorrow, etc.)
 - Color-coded by meeting type:
   - **Blue** - Regular meetings (2+ attendees)
   - **Green** - 1:1 meetings (1 attendee)
   - **Red** - Conflicting meetings
-- Countdown timer ("in 45m", "Now")
-- Click to open meeting list popout with full details
+- Countdown timer showing days/hours/minutes until meeting
+- Click bar widget to open slideout panel
 - Right-click to manually refresh calendar data
 - Expandable meeting cards with attendee info
 - One-click join for video meetings (Zoom, Meet, Teams, WebEx)
-- Service status indicator with last refresh time
+- Keyboard shortcut to toggle slideout
 
 ## Requirements
 
@@ -86,42 +88,85 @@ gcal status
 3. Enable MeetingWidget
 4. Add `meetingWidget` to your DankBar widget list
 
+## Keyboard Shortcut (Hyprland)
+
+Toggle the meeting slideout with:
+
+```
+Super + Ctrl + M
+```
+
+Add to `~/.config/hypr/UserConfigs/UserKeybinds.conf`:
+```bash
+bind = $mainMod CTRL, M, exec, dms ipc call widget toggle meetingWidget
+```
+
+## IPC Command
+
+Toggle via IPC (works with any compositor):
+```bash
+dms ipc call widget toggle meetingWidget
+```
+
 ## Configuration
 
 Available settings in plugin settings:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `showCountdown` | true | Show time until meeting in bar |
-| `refreshMinutes` | 5 | How often to fetch calendar updates |
+| `showCountdown` | true | Show countdown in bar pill |
+| `showNextMeetingInBar` | true | Show meeting info in bar (disable for icon-only) |
+| `showCountdownInBar` | false | Show only countdown time in bar |
+| `refreshMinutes` | 5 | How often to fetch calendar updates (1-30 min) |
 | `meetingColor` | #a6c8ff | Regular meeting color |
 | `oneOnOneColor` | #c3e88d | 1:1 meeting color |
 | `conflictColor` | #ffb4ab | Conflict warning color |
 | `noMeetingColor` | #90a4ae | "No meetings" text color |
 
+### Bar Display Modes
+
+- **Full mode** (default): Shows meeting title, countdown, and meeting count
+- **Icon only**: Set `showNextMeetingInBar: false` to show just the calendar icon
+- **Countdown only**: Set `showCountdownInBar: true` to show just the time until next meeting
+
 ## Display States
 
 - **Loading...** - Fetching calendar data
 - **Not configured** - gcal not authenticated
-- **No meetings** - No upcoming meetings in next 48h
-- **[Title] in [time]** - Next meeting with countdown
-- **[Title] Now** - Meeting currently in progress
+- **No meetings** - No upcoming meetings in next 14 days
+- **[time]** - Time until next meeting (e.g., "45m", "2h 30m", "3d 5h")
 
-## Meeting Popout
+### Time Display Format
 
-Click the widget to open a dropdown with:
-- Full list of upcoming meetings (next 48h)
-- Expandable cards with meeting details
-- Attendee list
-- Join buttons for video meetings
-- Conflict indicators
-- Color-coded meeting types
-- Status bar showing connection state and last refresh time
-- Manual refresh button
+| Time Until | Display |
+|------------|---------|
+| < 1 hour | `45m` |
+| 1-24 hours | `2h 30m` |
+| > 24 hours | `3d 5h` |
+| In progress | `now` |
+| Ended | `ended` |
+
+## Meeting Slideout
+
+Click the widget to open a full-height slideout panel on the right side of the screen:
+
+- **Header**: Shows title and meeting count
+- **Date headers**: Meetings grouped by day (Today, Tomorrow, Wed Jan 15, etc.)
+- **Meeting cards**: Clean two-row layout
+  - Row 1: Meeting title + expand chevron
+  - Row 2: Time range, attendees, countdown, video icon
+- **Expanded view**: Additional details, attendee list, Join button
+- **Status bar**: Connection state and last refresh time
+
+### Card Colors
+
+- **Highlighted border**: Next upcoming meeting
+- **Colored left bar**: Meeting type indicator
+- **Faded**: Past meetings
 
 ## Status Indicator
 
-The popout displays a status indicator showing the gcal service state:
+The slideout displays a status indicator showing the gcal service state:
 
 | Status | Color | Description |
 |--------|-------|-------------|
@@ -131,7 +176,7 @@ The popout displays a status indicator showing the gcal service state:
 | Not configured | Gray | gcal not authenticated |
 
 **Manual Refresh:**
-- Click the refresh button in the popout status bar
+- Click the refresh button in the slideout status bar
 - Right-click the widget in the bar for quick refresh
 
 ## gcal CLI Commands
@@ -140,11 +185,21 @@ The popout displays a status indicator showing the gcal service state:
 gcal auth        # Authenticate with Google
 gcal status      # Check connection status
 gcal events      # Fetch events (JSON output)
+gcal events -d 14  # Fetch 14 days of events
 gcal calendars   # List available calendars
 gcal logout      # Disconnect account
 ```
 
 See [gcal documentation](https://github.com/jimallen/gcal) for full CLI usage.
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `MeetingWidget.qml` | Main widget component |
+| `MeetingSlideout.qml` | Slideout panel component |
+| `MeetingWidgetSettings.qml` | Settings UI |
+| `plugin.json` | Plugin manifest |
 
 ## License
 
