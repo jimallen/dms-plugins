@@ -12,9 +12,7 @@ PluginComponent {
         service: WeatherService
     }
 
-    Ref {
-        service: PopoutService
-    }
+    property var popoutService: null
 
     readonly property color timeColor: pluginData.timeColor || "#d8bbf2"
     readonly property color dateColor: pluginData.dateColor || "#bcc2ff"
@@ -72,26 +70,15 @@ PluginComponent {
         return getConditionColor(WeatherService.weather.wCode);
     }
 
+    pillClickAction: (x, y, width, section, screen) => {
+        popoutService?.toggleDankDash(3, x, y, width, section, screen)
+    }
+
     horizontalBarPill: Component {
         Item {
             id: pillItem
             implicitWidth: row.implicitWidth
             implicitHeight: row.implicitHeight
-
-            MouseArea {
-                anchors.fill: parent
-                z: 10
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    const currentScreen = root.parentScreen || Screen;
-                    // For center section, use screen center for DankDash positioning
-                    const screenWidth = currentScreen.width;
-                    const triggerX = 0;
-                    const triggerY = root.barThickness + root.barSpacing;
-                    const triggerWidth = screenWidth;
-                    PopoutService.toggleDankDash(3, triggerX, triggerY, triggerWidth, root.section, currentScreen);
-                }
-            }
 
             SystemClock {
                 id: clock
