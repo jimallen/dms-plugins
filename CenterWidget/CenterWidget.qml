@@ -1,5 +1,7 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -11,8 +13,6 @@ PluginComponent {
     Ref {
         service: WeatherService
     }
-
-    property var popoutService: null
 
     readonly property color timeColor: pluginData.timeColor || "#d8bbf2"
     readonly property color dateColor: pluginData.dateColor || "#bcc2ff"
@@ -70,122 +70,230 @@ PluginComponent {
         return getConditionColor(WeatherService.weather.wCode);
     }
 
+    // Track which section was clicked (0 = date/time, 1 = weather)
+    property int clickedSection: 0
+
+    // Use pill's position handling - accepts (x, y, width, section, screen) from PluginComponent
     pillClickAction: (x, y, width, section, screen) => {
-        popoutService?.toggleDankDash(3, x, y, width, section, screen)
+        const tabIndex = root.clickedSection === 1 ? (SettingsData.weatherEnabled ? 3 : 0) : 0;
+        const barPosition = root.axis?.edge === "left" ? 2 : (root.axis?.edge === "right" ? 3 : (root.axis?.edge === "top" ? 0 : 1));
+
+        if (PopoutService.dankDashPopout) {
+            PopoutService.dankDashPopout.setTriggerPosition(x, y, width, section, screen, barPosition, root.barThickness, root.barSpacing, root.barConfig);
+            PopoutService.toggleDankDash(tabIndex);
+        } else {
+            // Store for repositioning after IPC
+            root.pendingX = x;
+            root.pendingY = y;
+            root.pendingWidth = width;
+            root.pendingSection = section;
+            root.pendingScreen = screen;
+            root.pendingBarPosition = barPosition;
+            root.pendingTabIndex = tabIndex;
+            root.pendingOpen = true;
+            Quickshell.execDetached(["dms", "ipc", "call", "dash", "toggle", "calendar"]);
+        }
+    }
+
+    // Position storage for first-time activation
+    property real pendingX: 0
+    property real pendingY: 0
+    property real pendingWidth: 0
+    property string pendingSection: "center"
+    property var pendingScreen: null
+    property int pendingBarPosition: 0
+    property int pendingTabIndex: 0
+    property bool pendingOpen: false
+
+    // Watch for dankDashPopout becoming available
+    Connections {
+        target: PopoutService
+        function onDankDashPopoutChanged() {
+            if (PopoutService.dankDashPopout && root.pendingOpen) {
+                root.pendingOpen = false;
+                PopoutService.dankDashPopout.dashVisible = false;
+                Qt.callLater(() => {
+                    PopoutService.dankDashPopout.setTriggerPosition(
+                        root.pendingX, root.pendingY, root.pendingWidth,
+                        root.pendingSection, root.pendingScreen,
+                        root.pendingBarPosition, root.barThickness, root.barSpacing, root.barConfig
+                    );
+                    PopoutService.dankDashPopout.currentTabIndex = root.pendingTabIndex;
+                    PopoutService.dankDashPopout.dashVisible = true;
+                });
+            }
+        }
     }
 
     horizontalBarPill: Component {
-        Item {
-            id: pillItem
-            implicitWidth: row.implicitWidth
-            implicitHeight: row.implicitHeight
+        Row {
+            id: row
+            spacing: Theme.spacingS
 
             SystemClock {
                 id: clock
                 precision: SystemClock.Minutes
             }
 
-            Row {
-                id: row
-                spacing: Theme.spacingS
+            // Time and Date section - opens calendar
+            Item {
+                width: dateRow.width
+                height: dateRow.height
 
-                StyledText {
-                    id: timeText
-                    text: clock.date ? Qt.formatTime(clock.date, "h:mm AP") : ""
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: root.timeColor
-                }
+                Row {
+                    id: dateRow
+                    spacing: Theme.spacingS
 
-                StyledText {
-                    text: "•"
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: "#908f9c"
-                }
-
-                StyledText {
-                    id: dateText
-                    text: clock.date ? Qt.formatDate(clock.date, "dddd, MMMM d") : ""
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: root.dateColor
-                }
-
-                StyledText {
-                    id: weatherSep
-                    visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
-                    text: "•"
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: "#908f9c"
-                }
-
-                DankIcon {
-                    id: weatherIcon
-                    visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
-                    name: WeatherService.weather ? WeatherService.getWeatherIcon(WeatherService.weather.wCode) : "cloud"
-                    size: Theme.iconSize - 6
-                    color: root.dynamicIconColor
-                }
-
-                StyledText {
-                    id: tempText
-                    visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
-                    text: {
-                        if (!WeatherService.weather || !WeatherService.weather.available) return "--°C";
-                        var temp = SettingsData.useFahrenheit ? WeatherService.weather.tempF : WeatherService.weather.temp;
-                        return temp + "°" + (SettingsData.useFahrenheit ? "F" : "C");
+                    StyledText {
+                        id: timeText
+                        text: clock.date ? Qt.formatTime(clock.date, "h:mm AP") : ""
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: root.timeColor
                     }
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: root.dynamicTempColor
+
+                    StyledText {
+                        text: "•"
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: "#908f9c"
+                    }
+
+                    StyledText {
+                        id: dateText
+                        text: clock.date ? Qt.formatDate(clock.date, "dddd, MMMM d") : ""
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: root.dateColor
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: root.clickedSection = 0  // Calendar
+                }
+            }
+
+            StyledText {
+                id: weatherSep
+                visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
+                text: "•"
+                font.pixelSize: Theme.fontSizeSmall
+                color: "#908f9c"
+            }
+
+            // Weather section - opens weather tab
+            Item {
+                visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
+                width: weatherRow.width
+                height: weatherRow.height
+
+                Row {
+                    id: weatherRow
+                    spacing: Theme.spacingXS
+
+                    DankIcon {
+                        id: weatherIcon
+                        name: WeatherService.weather ? WeatherService.getWeatherIcon(WeatherService.weather.wCode) : "cloud"
+                        size: Theme.iconSize - 6
+                        color: root.dynamicIconColor
+                    }
+
+                    StyledText {
+                        id: tempText
+                        text: {
+                            if (!WeatherService.weather || !WeatherService.weather.available) return "--°C";
+                            var temp = SettingsData.useFahrenheit ? WeatherService.weather.tempF : WeatherService.weather.temp;
+                            return temp + "°" + (SettingsData.useFahrenheit ? "F" : "C");
+                        }
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: root.dynamicTempColor
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: root.clickedSection = 1  // Weather
                 }
             }
         }
     }
 
     verticalBarPill: Component {
-        Item {
-            implicitWidth: col.implicitWidth
-            implicitHeight: col.implicitHeight
+        Column {
+            id: col
+            spacing: Theme.spacingXS
 
             SystemClock {
                 id: clockV
                 precision: SystemClock.Minutes
             }
 
-            Column {
-                id: col
-                spacing: Theme.spacingXS
+            // Time and Date section - opens calendar
+            Item {
+                width: dateCol.width
+                height: dateCol.height
+                anchors.horizontalCenter: parent.horizontalCenter
 
-                StyledText {
-                    text: clockV.date ? Qt.formatTime(clockV.date, "hh:mm") : ""
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: root.timeColor
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
+                Column {
+                    id: dateCol
+                    spacing: Theme.spacingXS
 
-                StyledText {
-                    text: clockV.date ? Qt.formatDate(clockV.date, "M/d") : ""
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: root.dateColor
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-                DankIcon {
-                    visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
-                    name: WeatherService.weather ? WeatherService.getWeatherIcon(WeatherService.weather.wCode) : "cloud"
-                    size: Theme.iconSize - 8
-                    color: root.dynamicIconColor
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-                StyledText {
-                    visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
-                    text: {
-                        if (!WeatherService.weather || !WeatherService.weather.available) return "--°";
-                        var temp = SettingsData.useFahrenheit ? WeatherService.weather.tempF : WeatherService.weather.temp;
-                        return temp + "°";
+                    StyledText {
+                        text: clockV.date ? Qt.formatTime(clockV.date, "hh:mm") : ""
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: root.timeColor
+                        anchors.horizontalCenter: parent.horizontalCenter
                     }
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: root.dynamicTempColor
-                    anchors.horizontalCenter: parent.horizontalCenter
+
+                    StyledText {
+                        text: clockV.date ? Qt.formatDate(clockV.date, "M/d") : ""
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: root.dateColor
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: root.clickedSection = 0  // Calendar
+                }
+            }
+
+            // Weather section - opens weather tab
+            Item {
+                visible: root.showWeather && SettingsData.weatherEnabled && WeatherService.weather
+                width: weatherCol.width
+                height: weatherCol.height
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Column {
+                    id: weatherCol
+                    spacing: Theme.spacingXS
+
+                    DankIcon {
+                        name: WeatherService.weather ? WeatherService.getWeatherIcon(WeatherService.weather.wCode) : "cloud"
+                        size: Theme.iconSize - 8
+                        color: root.dynamicIconColor
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    StyledText {
+                        text: {
+                            if (!WeatherService.weather || !WeatherService.weather.available) return "--°";
+                            var temp = SettingsData.useFahrenheit ? WeatherService.weather.tempF : WeatherService.weather.temp;
+                            return temp + "°";
+                        }
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: root.dynamicTempColor
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: root.clickedSection = 1  // Weather
                 }
             }
         }
