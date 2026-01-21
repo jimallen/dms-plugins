@@ -16,6 +16,9 @@ Bar widget displaying your Google Calendar meetings with a full-screen slideout 
 - Right-click to manually refresh calendar data
 - Expandable meeting cards with attendee info
 - One-click join for video meetings (Zoom, Meet, Teams, WebEx)
+- **Auto-correct account** - Meeting links open with the authenticated Google account
+- **In-app authentication** - Authenticate directly from the widget when not connected
+- **Auth notifications** - Desktop notification when calendar needs authentication
 - Keyboard shortcut to toggle slideout
 
 ## Requirements
@@ -164,6 +167,27 @@ Click the widget to open a full-height slideout panel on the right side of the s
 - **Colored left bar**: Meeting type indicator
 - **Faded**: Past meetings
 
+## Authentication
+
+### In-App Authentication
+
+When not authenticated, the widget shows an "Authenticate" button in the slideout. Clicking it:
+
+1. Clears any existing tokens (ensures fresh account selection)
+2. Opens Google OAuth in your browser
+3. Polls for completion (up to 2 minutes)
+4. Automatically loads calendar when auth succeeds
+
+The status bar shows "Authenticating..." during this process.
+
+### Auth Notifications
+
+On startup, if the calendar is not connected, a desktop notification appears prompting you to authenticate. This only shows once per session.
+
+### Correct Google Account
+
+Meeting links (Google Meet, Calendar) automatically include the `authuser` parameter with your authenticated email. This ensures meetings open in the correct Google account, even if you have multiple accounts signed into your browser.
+
 ## Status Indicator
 
 The slideout displays a status indicator showing the gcal service state:
@@ -172,8 +196,9 @@ The slideout displays a status indicator showing the gcal service state:
 |--------|-------|-------------|
 | Connected | Green | Successfully connected, shows last refresh time |
 | Refreshing | Blue | Currently fetching calendar data |
+| Authenticating | Blue | OAuth flow in progress, waiting for browser |
 | Error | Red | Failed to fetch data (check gcal CLI) |
-| Not configured | Gray | gcal not authenticated |
+| Not configured | Gray | gcal not authenticated (click to auth) |
 
 **Manual Refresh:**
 - Click the refresh button in the slideout status bar

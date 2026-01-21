@@ -26,8 +26,34 @@ PluginComponent {
     property bool configured: false
     property string errorMessage: ""
     property date lastRefresh: new Date(0)
+    property bool authNotificationShown: false
+    property string authenticatedEmail: ""
+
+    function openMeetingUrl(url) {
+        if (!url) return
+        // Add authuser parameter to ensure correct Google account is used
+        if (authenticatedEmail && (url.includes("meet.google.com") || url.includes("calendar.google.com"))) {
+            let separator = url.includes("?") ? "&" : "?"
+            url = url + separator + "authuser=" + encodeURIComponent(authenticatedEmail)
+        }
+        Qt.openUrlExternally(url)
+    }
+    property bool authInProgress: false
+    property int authCheckAttempts: 0
+    readonly property int maxAuthCheckAttempts: 24  // 2 minutes max (24 * 5 seconds)
+
+    function startAuth() {
+        // Kill any stuck auth process, logout to clear token, then auth fresh
+        // This ensures user can choose the correct Google account
+        Quickshell.execDetached(["sh", "-c", "lsof -ti:8085 | xargs -r kill 2>/dev/null; gcal logout 2>/dev/null; gcal auth"])
+        // Start polling for auth completion
+        root.authInProgress = true
+        root.authCheckAttempts = 0
+        authCheckTimer.restart()
+    }
 
     readonly property string statusText: {
+        if (authInProgress) return "Authenticating..."
         if (!configured) return "Not configured"
         if (loading) return "Refreshing..."
         if (errorMessage) return "Error"
@@ -35,6 +61,7 @@ PluginComponent {
     }
 
     readonly property color statusColor: {
+        if (authInProgress) return meetingColor
         if (!configured) return noMeetingColor
         if (loading) return meetingColor
         if (errorMessage) return conflictColor
@@ -182,6 +209,23 @@ PluginComponent {
         onTriggered: root.lastRefreshTick++
     }
 
+    Timer {
+        id: authCheckTimer
+        interval: 5000
+        repeat: true
+        running: false
+        onTriggered: {
+            root.authCheckAttempts++
+            if (root.authCheckAttempts >= root.maxAuthCheckAttempts) {
+                // Give up after max attempts
+                root.authInProgress = false
+                authCheckTimer.stop()
+                return
+            }
+            statusProcess.running = true
+        }
+    }
+
     Process {
         id: statusProcess
         command: ["gcal", "status"]
@@ -192,9 +236,36 @@ PluginComponent {
                     let result = JSON.parse(text)
                     root.configured = result.configured && result.authorized
                     if (root.configured) {
+                        // Auth succeeded - stop polling and refresh calendar
+                        root.authInProgress = false
+                        authCheckTimer.stop()
+                        root.authNotificationShown = false
+                        // Fetch email for correct account in meeting links
+                        if (!root.authenticatedEmail) {
+                            calendarsProcess.running = true
+                        }
                         root.refresh()
                     } else {
-                        root.errorMessage = result.message || "Not configured"
+                        // Clear any stale data when not authenticated
+                        root.errorMessage = ""
+                        root.events = []
+                        root.nextEvent = null
+                        root.authenticatedEmail = ""
+                        // Show notification for unauthenticated state (only once per session)
+                        if (!root.authNotificationShown) {
+                            root.authNotificationShown = true
+                            let msg = result.configured && !result.authorized
+                                ? "Google Calendar needs re-authorization. Click the meeting widget to authenticate."
+                                : "Google Calendar is not configured. Click the meeting widget to set up."
+                            Quickshell.execDetached([
+                                "notify-send",
+                                "-a", "MeetingWidget",
+                                "-i", "calendar",
+                                "-u", "normal",
+                                "Calendar Not Connected",
+                                msg
+                            ])
+                        }
                     }
                 } catch (e) {
                     root.errorMessage = "Failed to parse status"
@@ -219,9 +290,35 @@ PluginComponent {
                         root.findNextEvent()
                     } else {
                         root.errorMessage = result.message || result.error
+                        // Re-check auth status - if auth expired, this will show the auth screen
+                        statusProcess.running = true
                     }
                 } catch (e) {
                     root.errorMessage = "Failed to parse events"
+                    // Re-check auth status on parse errors too
+                    statusProcess.running = true
+                }
+            }
+        }
+    }
+
+    Process {
+        id: calendarsProcess
+        command: ["gcal", "calendars"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let result = JSON.parse(text)
+                    if (result.success && result.calendars) {
+                        // Find primary calendar - its ID is the user's email
+                        let primary = result.calendars.find(c => c.primary)
+                        if (primary && primary.id) {
+                            root.authenticatedEmail = primary.id
+                        }
+                    }
+                } catch (e) {
+                    console.warn("MeetingWidget: Failed to get calendar email:", e)
                 }
             }
         }
@@ -516,7 +613,7 @@ PluginComponent {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: function(mouse) {
                                                     mouse.accepted = true
-                                                    Qt.openUrlExternally(modelData.meetingUrl)
+                                                    root.openMeetingUrl(modelData.meetingUrl)
                                                 }
                                             }
                                         }
@@ -674,7 +771,7 @@ PluginComponent {
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: function(mouse) {
                                                 mouse.accepted = true
-                                                Qt.openUrlExternally(modelData.meetingUrl)
+                                                root.openMeetingUrl(modelData.meetingUrl)
                                             }
                                         }
                                     }
@@ -698,12 +795,67 @@ PluginComponent {
                     }
                 }
 
-                StyledText {
+                Column {
                     visible: !root.configured
                     anchors.centerIn: parent
-                    text: "Google Calendar not configured"
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: Theme.surfaceVariantText
+                    spacing: Theme.spacingL
+
+                    DankIcon {
+                        name: "event_busy"
+                        size: 48
+                        color: Theme.surfaceVariantText
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    StyledText {
+                        text: "Google Calendar not connected"
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceVariantText
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    StyledText {
+                        text: "Authenticate to see your upcoming meetings"
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceVariantText
+                        opacity: 0.7
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    Rectangle {
+                        id: authButton
+                        width: 160
+                        height: 40
+                        radius: Theme.cornerRadius
+                        color: authButtonArea.containsMouse ? Qt.lighter(Theme.primary, 1.1) : Theme.primary
+                        anchors.horizontalCenter: parent.horizontalCenter
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: Theme.spacingS
+
+                            DankIcon {
+                                name: "login"
+                                size: 18
+                                color: Theme.onPrimary
+                            }
+
+                            StyledText {
+                                text: "Authenticate"
+                                font.pixelSize: Theme.fontSizeMedium
+                                font.weight: Font.Medium
+                                color: Theme.onPrimary
+                            }
+                        }
+
+                        MouseArea {
+                            id: authButtonArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.startAuth()
+                        }
+                    }
                 }
 
                 StyledText {
@@ -729,31 +881,44 @@ PluginComponent {
                 width: parent.width
                 spacing: Theme.spacingM
 
-                Row {
-                    id: statusInfo
-                    spacing: Theme.spacingXS
+                Item {
+                    width: statusInfo.width
+                    height: statusInfo.height
                     anchors.verticalCenter: parent.verticalCenter
 
-                    Rectangle {
-                        width: 8
-                        height: 8
-                        radius: 4
-                        color: root.statusColor
-                        anchors.verticalCenter: parent.verticalCenter
+                    Row {
+                        id: statusInfo
+                        spacing: Theme.spacingXS
+
+                        Rectangle {
+                            width: 8
+                            height: 8
+                            radius: 4
+                            color: root.statusColor
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: root.configured ? root.statusText : "Click to authenticate"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: root.statusColor
+                            font.weight: Font.Medium
+                        }
+
+                        StyledText {
+                            visible: root.configured && !root.loading
+                            text: "• " + root.lastRefreshText
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceVariantText
+                        }
                     }
 
-                    StyledText {
-                        text: root.statusText
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: root.statusColor
-                        font.weight: Font.Medium
-                    }
-
-                    StyledText {
-                        visible: root.configured && !root.loading
-                        text: "• " + root.lastRefreshText
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: Theme.surfaceVariantText
+                    MouseArea {
+                        anchors.fill: parent
+                        visible: !root.configured
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.startAuth()
                     }
                 }
 
@@ -764,21 +929,23 @@ PluginComponent {
                     width: 36
                     height: 36
                     radius: 18
-                    color: refreshArea.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh
+                    color: refreshArea.containsMouse ?
+                        (root.configured ? Theme.surfaceContainerHighest : Qt.lighter(Theme.primary, 1.1)) :
+                        (root.configured ? Theme.surfaceContainerHigh : Theme.primary)
                     anchors.verticalCenter: parent.verticalCenter
 
                     DankIcon {
                         anchors.centerIn: parent
-                        name: "refresh"
+                        name: root.configured ? "refresh" : "login"
                         size: 18
-                        color: Theme.surfaceText
+                        color: root.configured ? Theme.surfaceText : Theme.onPrimary
 
                         RotationAnimator on rotation {
                             from: 0
                             to: 360
                             duration: 1000
                             loops: Animation.Infinite
-                            running: root.loading
+                            running: root.loading && root.configured
                         }
                     }
 
@@ -787,7 +954,7 @@ PluginComponent {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.refresh()
+                        onClicked: root.configured ? root.refresh() : root.startAuth()
                     }
                 }
             }
