@@ -1,0 +1,17 @@
+{
+    "id": "hyprwhsprWidget",
+    "name": "HyprWhspr Widget",
+    "description": "Speech-to-text control widget for hyprwhspr with recording status and push-to-talk support",
+    "version": "1.0.0",
+    "license": "MIT",
+    "author": "jima",
+    "icon": "mic",
+    "type": "widget",
+    "capabilities": ["dankbar-widget"],
+    "component": "./HyprWhsprWidget.qml",
+    "settings": "./HyprWhsprSettings.qml",
+    "permissions": [
+        "settings_read",
+        "settings_write"
+    ]
+}
